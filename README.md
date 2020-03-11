@@ -26,6 +26,15 @@ target and choose the model at the top of the leaderboard. This logic is easily 
 
 The script [standard_example.R](scripts/standard_example.R) shows how to run a model factory for a classification or regression project.
 
+```
+cd scripts
+Rscript standard_example.R 
+```
+
 The script [timeseries_example.R](scripts/timeseries_example.R) shows how to do it for a time series project.
 
+```
+cd scripts
+Rscript timeseries_example.R
+```
 

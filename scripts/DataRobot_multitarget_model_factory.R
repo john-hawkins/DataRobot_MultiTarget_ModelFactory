@@ -16,24 +16,30 @@ base_url="https://app.datarobot.com/"
 datarobot_multitarget_model_factory <- function(df, targets, project_name, result_dir, metric) {
 
 	# WE WRITE OUT THE MODEL RESULTS INTO A TABLE
-	resultsFile = paste(result_dir, 'model_list.tsv', sep='/')
-	resultsPage = paste(result_dir, 'model_list.html', sep='/')
+        rez_file_name = paste(project_name, "_model_list.tsv", sep='')
+        resultsFile = paste(result_dir, rez_file_name, sep='/')
+
+        page_file_name = paste(project_name, "_model_list.html", sep='')
+	resultsPage = paste(result_dir, page_file_name, sep='/')
 
 	# Write a header to the results files before we begin 
 	result = tryCatch({
 		rez <- file(resultsFile, "w")
-		writeLines("target\tdatarobot_project_id\tdatarobot_model_id\tmetric",con=rez,sep="\n")
+		writeLines( paste("target\tdatarobot_project_id\tdatarobot_model_id\t", metric, sep=""),con=rez,sep="\n")
 
 		page <- file(resultsPage, "w")
 		writeLines( 
-                   paste( "<html> <head> <title>DataRobot Models for", project_name, "<title> <link rel='stylesheet' href='style.css'></head> <body>", sep=""), 
+                   paste( "<html> <head> 
+                           <title>DataRobot Models for", project_name, "</title> 
+                           <link rel='stylesheet' href='style.css'>
+                           </head> <body>", sep=""), 
                    con=page, sep="\n" 
                 )
                 header = paste("<div class='rTable'>
                  <div class='rTableRow'>
                  <div class='rTableHead'>Model</div>
+                 <div class='rTableHead'>Model Type</div>
                  <div class='rTableHead'>", metric, "</div>
-                 <div class='rTableHead'></div>
                  </div>", sep="")
                 writeLines( header, con=page, sep="\n")
 
@@ -66,22 +72,21 @@ datarobot_multitarget_model_factory <- function(df, targets, project_name, resul
                 F_id = Flist$featurelistId
                 print("Featurelist Created")
 		StartNewAutoPilot(temp.proj, featurelistId = F_id)
+                UpdateProject(project = temp.proj$projectId, workerCount = -1)
+
                 print("Auto-Pilot Started... Halting until completion")
 		WaitForAutopilot(project = temp.proj)
 
-		# Once Autopilot has finished we retrieve the best model ID
-		all.models 	<- ListModels(temp.proj)
-		model.frame 	<- as.data.frame(all.models)
-		model.type 	<- model.frame$modelType
-
-		best.model	<- all.models[[1]]
+		# Once Autopilot has finished we retrieve the most accurate model details 
+                best.model	<- GetRecommendedModel(temp.proj, type = RecommendedModelType$MostAccurate)
+		model.type 	<- best.model$modelType
 		modelId		<- best.model$modelId
 		metric		<- best.model$metrics[[metric]]$validation		
-                url 		<- paste( base_url, "projects/", temp.proj$projectId, "/models/", modelId, "/lift-chart")
+                url 		<- paste( base_url, "projects/", temp.proj$projectId, "/models/", modelId, "/lift-chart", sep="")
                 entry		<- paste("<div class='rTableRow'>
                                           <div class='rTableCell'><a href='", url ,"'>", target, "</a></div>
+                                          <div class='rTableCell'>", model.type, "</div>
                                           <div class='rTableCell'>", metric, "</div>
-                                          <div class='rTableCell'></div>
                                           </div>", sep="")
 		writeLines(paste(target, temp.proj$projectId, modelId, metric, sep='\t'), con=rez, sep="\n")		
                 writeLines( entry, con=page, sep="\n")
