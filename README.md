@@ -1,9 +1,11 @@
-Multi Target Model Factory with API Container
+Multi Target Model Factory 
 ===============================================
 
 This project contains scripts for building large numbers of models
 using DataRobot, where each project uses a different target column 
-from the same datset. We call this a is Multi-Target Model Factory.
+from the same datset. 
+
+We call this a *Multi-Target Model Factory*.
 
 ### Assumptions
 
