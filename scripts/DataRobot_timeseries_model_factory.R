@@ -8,7 +8,7 @@ library(data.table)
 # targets       - (Array) The list of target columns to build independent models
 # project_name  - (String) Prefix for project name in datarobot
 # result_dir    - (String) Path to write the results
-# metric        - (String) The metric to report on
+# metrics       - (Array:String) The metrics to report on
 #
 # NOTE: There is no error checking on the parameters. 
 #       Any reference to columns that do not exist will result in a fatal error.
@@ -17,7 +17,7 @@ library(data.table)
 # CHANGE THIS IF YOU ARE USING A LOCAL DATAROBOT INSTALL
 base_url="https://app.datarobot.com/"
 
-datarobot_timeseries_model_factory <- function(df, date_col, targets, project_name, result_dir, metric) {
+datarobot_timeseries_model_factory <- function(df, date_col, targets, project_name, result_dir, metrics) {
 
 	# WE WRITE OUT THE MODEL RESULTS INTO A TABLE
         rez_file_name = paste(project_name, "_model_list.tsv", sep='')
@@ -29,7 +29,8 @@ datarobot_timeseries_model_factory <- function(df, date_col, targets, project_na
 	# Write a header to the results files before we begin 
 	result = tryCatch({
 		rez <- file(resultsFile, "w")
-		writeLines( paste("target\tdatarobot_project_id\tdatarobot_model_id\t", metric, sep=""),con=rez,sep="\n")
+                metric_str = paste(metrics, collapse = '\t')
+		writeLines( paste("target\tdatarobot_project_id\tdatarobot_model_id\t", metric_str, sep=""), con=rez,sep="\n")
 
 		page <- file(resultsPage, "w")
 		writeLines( 
@@ -39,11 +40,13 @@ datarobot_timeseries_model_factory <- function(df, date_col, targets, project_na
                            </head> <body>", sep=""), 
                    con=page, sep="\n" 
                 )
+
+                metric_str = paste(metrics, collapse = "</div><div class='rTableHead'>")
                 header = paste("<div class='rTable'>
                  <div class='rTableRow'>
                  <div class='rTableHead'>Model</div>
                  <div class='rTableHead'>Model Type</div>
-                 <div class='rTableHead'>", metric, "</div>
+                 <div class='rTableHead'>", metric_str, "</div>
                  </div>", sep="")
                 writeLines( header, con=page, sep="\n")
 
@@ -74,11 +77,8 @@ datarobot_timeseries_model_factory <- function(df, date_col, targets, project_na
 		projName 	<- paste(project_name, target, sep='_')
 		temp.proj	<- SetupProject( dataSource=temp.data, projectName=projName )
 
-		#SetTarget(project=temp.proj, target=target, partition = dt_partition, mode = 'manual')
 		SetTarget(project=temp.proj, target=target, partition = dt_partition)
 		
-		#StartNewAutoPilot(temp.proj)
-
                 UpdateProject(project = temp.proj$projectId, workerCount = -1)
 
                 print("Auto-Pilot Started... Halting until completion")
@@ -87,16 +87,26 @@ datarobot_timeseries_model_factory <- function(df, date_col, targets, project_na
 		# Once Autopilot has finished we retrieve the most accurate model details 
                 best.model	<- GetRecommendedModel(temp.proj, type = RecommendedModelType$MostAccurate)
 		model.type 	<- best.model$modelType
-		modelId		<- best.model$modelId
-		metric		<- best.model$metrics[[metric]]$validation		
-                url 		<- paste( base_url, "projects/", temp.proj$projectId, "/models/", modelId, "/accuracy-over-time", sep="")
-                entry		<- paste("<div class='rTableRow'>
+		model.id	<- best.model$modelId
+		my.metrics	<- character(length(metrics))
+		for (i in 1:length(metrics)) {
+
+		my.metrics[i]	<- tryCatch({	
+					best.model$metrics[[ metrics[i] ]]$validation
+				}, error = function(e) {
+                			"-"
+        			})
+		}	
+                url 		<- paste( base_url, "projects/", temp.proj$projectId, "/models/", model.id, "/accuracy-over-time", sep="")
+		metric_str 	<- paste( my.metrics, collapse = "</div><div class='rTableCell'>")
+                entry		<- paste( "<div class='rTableRow'>
                                           <div class='rTableCell'><a href='", url ,"'>", target, "</a></div>
                                           <div class='rTableCell'>", model.type, "</div>
-                                          <div class='rTableCell'>", metric, "</div>
+                                          <div class='rTableCell'>", metric_str, "</div>
                                           </div>", sep="")
-		writeLines(paste(target, temp.proj$projectId, modelId, metric, sep='\t'), con=rez, sep="\n")		
                 writeLines( entry, con=page, sep="\n")
+		metric_str = paste( my.metrics, collapse = '\t')
+		writeLines(paste(target, temp.proj$projectId, model.id, metric_str, sep='\t'), con=rez, sep="\n")		
 	}
         # FINISH THE TABLE IN THE HTML OUTPUT
 
@@ -107,4 +117,5 @@ datarobot_timeseries_model_factory <- function(df, date_col, targets, project_na
 	close(rez)
 	return(1)
 } 
+
 
